@@ -5,8 +5,9 @@ import { FunctionsRegistry } from '../lib/functions/registry.js'
 
 import { exit, log, NETLIFYDEVERR } from './command-helpers.js'
 import { startProxy } from './proxy.js'
-import type StateConfig from './state-config.js'
+import type CLIState from './cli-state.js'
 import { ServerSettings } from './types.js'
+import { CachedConfig } from '../lib/build.js'
 
 interface InspectSettings {
   // Inspect enabled
@@ -68,14 +69,14 @@ export const startProxyServer = async ({
   api?: NetlifyOptions['api']
   blobsContext?: BlobsContextWithEdgeAccess
   command: BaseCommand
-  config: NetlifyOptions['config']
+  config: CachedConfig['config']
   // An override for the Netlify config path
   configPath?: string
   debug: boolean
   disableEdgeFunctions: boolean
   env: NetlifyOptions['cachedConfig']['env']
   inspectSettings: InspectSettings
-  getUpdatedConfig: () => Promise<object>
+  getUpdatedConfig: () => Promise<CachedConfig['config']>
   geolocationMode: string
   geoCountry: string
   settings: ServerSettings
@@ -84,7 +85,7 @@ export const startProxyServer = async ({
   siteInfo: $TSFixMe
   projectDir: string
   repositoryRoot?: string
-  state: StateConfig
+  state: CLIState
   functionsRegistry?: FunctionsRegistry
 }) => {
   const url = await startProxy({

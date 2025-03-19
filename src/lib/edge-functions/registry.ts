@@ -19,14 +19,9 @@ import {
 import type { FeatureFlags } from '../../utils/feature-flags.js'
 import { MultiMap } from '../../utils/multimap.js'
 import { getPathInProject } from '../settings.js'
+import type { CachedConfig } from '../build.js'
 
 import { INTERNAL_EDGE_FUNCTIONS_FOLDER } from './consts.js'
-
-//  TODO: Replace with a proper type for the entire config object.
-export interface Config {
-  edge_functions?: Declaration[]
-  [key: string]: unknown
-}
 
 type DependencyCache = Record<string, string[]>
 type EdgeFunctionEvent = 'buildError' | 'loaded' | 'reloaded' | 'reloading' | 'removed'
@@ -38,13 +33,13 @@ type ModuleJson = ModuleGraph['modules'][number]
 interface EdgeFunctionsRegistryOptions {
   command: BaseCommand
   bundler: typeof import('@netlify/edge-bundler')
-  config: Config
+  config: CachedConfig['config']
   configPath: string
   debug: boolean
   directories: string[]
   env: Record<string, { sources: string[]; value: string }>
   featureFlags: FeatureFlags
-  getUpdatedConfig: () => Promise<Config>
+  getUpdatedConfig: () => Promise<CachedConfig['config']>
   projectDir: string
   runIsolate: RunIsolate
   servePath: string
@@ -120,7 +115,7 @@ export class EdgeFunctionsRegistry {
   // opposed to O(n).
   private functionPaths = new Map<string, string>()
 
-  private getUpdatedConfig: () => Promise<Config>
+  private getUpdatedConfig: () => Promise<CachedConfig['config']>
   private initialScan: Promise<void>
   private manifest: Manifest | null = null
   private routes: Route[] = []
@@ -301,7 +296,7 @@ export class EdgeFunctionsRegistry {
     }
   }
 
-  private static getDeclarationsFromTOML(config: Config) {
+  private static getDeclarationsFromTOML(config: CachedConfig['config']) {
     const { edge_functions: edgeFunctions = [] } = config
 
     return edgeFunctions

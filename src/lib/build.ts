@@ -1,38 +1,100 @@
 import fs from 'fs'
 import process from 'process'
 
-import build, { type OnEnd, type OnPostBuild } from '@netlify/build'
+import build, { type NetlifyConfig, type OnEnd, type OnPostBuild } from '@netlify/build'
+import type { MinimalHeader } from '@netlify/headers-parser'
 import tomlify from 'tomlify-j0.4'
 import type { OptionValues } from 'commander'
 
 import { getFeatureFlagsFromSiteInfo } from '../utils/feature-flags.js'
-import type { EnvironmentVariables } from '../utils/types.js'
-
+import type { Account, EnvironmentVariables } from '../utils/types.js'
 import { getBootstrapURL } from './edge-functions/bootstrap.js'
 import { featureFlags as edgeFunctionsFeatureFlags } from './edge-functions/consts.js'
 
 export interface CachedConfig {
+  accounts: Account[]
+  buildDir: string
   env: EnvironmentVariables
+  repositoryRoot: string
   siteInfo: {
     id?: string
     account_id?: string
     feature_flags?: Record<string, boolean | boolean | number>
+    // FIXME(serhalp) This has become a rabbit hole. We'll fix this in a follow-up PR.
+    [k: string]: any
   }
-  // TODO(serhalp) Add remaining properties
-  [k: string]: unknown
+
+  // TODO(serhalp) Type these properties:
+  addons?: unknown
+  api?: unknown
+  branch?: unknown
+  config: {
+    build: {
+      base: string
+      edge_functions?: undefined | string
+      // public?: string TYPO?
+      environment: Record<string, unknown>
+      publish: string
+      publishOrigin: string
+      processing: {
+        css: Record<string, unknown>
+        html: Record<string, unknown>
+        images: Record<string, unknown>
+        js: Record<string, unknown>
+      }
+      services: Record<string, unknown>
+    }
+    dev: {
+      // FIXME(serhalp) There is absolutely no trace of this in the `netlify/build` codebase yet
+      // it appears to be real functionality. Fix this upstream.
+      processing: {
+        html?: {
+          injections?: Array<{
+            /**
+             * The location at which the `html` will be injected.
+             * Defaults to `before_closing_head_tag` which will inject the HTML before the </head> tag.
+             */
+            location?: 'before_closing_head_tag' | 'before_closing_body_tag'
+            /**
+             * The injected HTML code.
+             */
+            html: string
+          }>
+        }
+      }
+    }
+    functions?: NetlifyConfig['functions']
+    functionsDirectory?: undefined | string
+    headers: MinimalHeader[]
+    // XXX(serhalp) Confirm this is a real thing:
+    images: {
+      remote_images: string[]
+    }
+    redirects: undefined | NetlifyConfig['redirects']
+  }
+  configPath?: undefined | string
+  context: string
+  headersPath?: unknown
+  integrations: unknown[]
+  logs?: unknown
+  redirectsPath?: unknown
+  token?: unknown
 }
 
-interface DefaultConfig {
-  // TODO(serhalp) Add remaining properties
-  [k: string]: unknown
+export interface DefaultConfig {
+  build: {
+    command?: string | undefined
+    commandOrigin?: 'default' | undefined
+    publish?: string | undefined
+    publishOrigin?: 'default' | undefined
+  }
+  plugins?: Array<{ package: unknown; origin: 'default' }>
 }
 
 // TODO(serhalp) This is patching weak or missing properties from @netlify/build. Fix there instead.
-export type BuildConfig = Parameters<typeof build>[0] & {
+export type RunBuildOptions = Omit<NonNullable<Parameters<typeof build>[0]>, 'cachedConfig'> & {
   cachedConfig: CachedConfig
-  defaultConfig: DefaultConfig
-  // It's possible this one is correct in @netlify/build. Remove and stop passing it if so.
-  accountId?: string
+  defaultConfig: DefaultConfig | {}
   edgeFunctionsBootstrapURL: string
 }
 
@@ -54,7 +116,7 @@ type EventHandler<T extends (opts: any) => void | Promise<void>> = {
 // We have already resolved the configuration using `@netlify/config`
 // This is stored as `netlify.cachedConfig` and can be passed to
 // `@netlify/build --cachedConfig`.
-export const getBuildOptions = async ({
+export const getRunBuildOptions = async ({
   cachedConfig,
   currentDir,
   defaultConfig,
@@ -65,12 +127,12 @@ export const getBuildOptions = async ({
 }: {
   cachedConfig: CachedConfig
   currentDir: string
-  defaultConfig?: DefaultConfig
+  defaultConfig?: undefined | DefaultConfig
   deployHandler?: PatchedHandlerType<OnPostBuild>
   options: OptionValues
   packagePath?: string
   token?: null | string
-}): Promise<BuildConfig> => {
+}): Promise<RunBuildOptions> => {
   const eventHandlers: { onEnd: EventHandler<OnEnd>; onPostBuild?: EventHandler<OnPostBuild> } = {
     onEnd: {
       handler: ({ netlifyConfig }) => {
@@ -121,7 +183,7 @@ export const getBuildOptions = async ({
   }
 }
 
-export const runBuild = async (options: BuildConfig) => {
+export const runBuild = async (options: RunBuildOptions) => {
   // If netlify NETLIFY_API_URL is set we need to pass this information to @netlify/build
   // TODO don't use testOpts, but add real properties to do this.
   if (process.env.NETLIFY_API_URL) {
@@ -135,6 +197,11 @@ export const runBuild = async (options: BuildConfig) => {
     options = { ...options, testOpts }
   }
 
-  const { configMutations, netlifyConfig: newConfig, severityCode: exitCode } = await build(options)
+  const {
+    configMutations,
+    netlifyConfig: newConfig,
+    severityCode: exitCode,
+    // TODO(serhalp) Upstream the type fixes above into @netlify/build and remove this type assertion
+  } = await (build as unknown as (opts: RunBuildOptions) => Promise<ReturnType<typeof build>>)(options)
   return { exitCode, newConfig, configMutations }
 }
