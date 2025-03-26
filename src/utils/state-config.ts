@@ -93,7 +93,7 @@ export default class StateConfig {
       // TODO figure out cleaner way of grabbing ENV vars
       return process.env.NETLIFY_SITE_ID
     }
-    return getProperty(this.all, key)
+    getProperty(this.all, key)
   }
 
   // @ts-expect-error TS(7019) FIXME: Rest parameter 'args' implicitly has an 'any[]' ty... Remove this comment to see the full error message

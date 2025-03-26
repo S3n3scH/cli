@@ -52,7 +52,7 @@ export const createFormSubmissionHandler = function ({
       req.method !== 'POST' ||
       (await functionsRegistry.getFunctionForURLPath(req.url, req.method, () => Promise.resolve(false)))
     )
-      return next()
+      { next(); return; }
 
     const fakeRequest = new Readable({
       read() {
@@ -65,7 +65,7 @@ export const createFormSubmissionHandler = function ({
 
     const handlerName = getFormHandler({ functionsRegistry })
     if (!handlerName) {
-      return next()
+      next(); return;
     }
 
     const originalUrl = new URL(req.url, 'http://localhost')
@@ -88,7 +88,7 @@ export const createFormSubmissionHandler = function ({
           const form = new multiparty.Form({ encoding: ct.parameters.charset || 'utf8' })
           // @ts-expect-error TS(7006) FIXME: Parameter 'err' implicitly has an 'any' type.
           form.parse(fakeRequest, (err, Fields, Files) => {
-            if (err) return reject(err)
+            if (err) { reject(err); return; }
             Files = Object.entries(Files).reduce(
               (prev, [name, values]) => ({
                 ...prev,
@@ -102,7 +102,7 @@ export const createFormSubmissionHandler = function ({
               }),
               {},
             )
-            return resolve([
+            resolve([
               Object.entries(Fields).reduce(
                 // @ts-expect-error TS(2571) FIXME: Object is of type 'unknown'.
                 (prev, [name, values]) => ({ ...prev, [name]: values.length > 1 ? values : values[0] }),
@@ -113,17 +113,17 @@ export const createFormSubmissionHandler = function ({
                 (prev, [name, values]) => ({ ...prev, [name]: values.length > 1 ? values : values[0] }),
                 {},
               ),
-            ])
+            ]);
           })
         })
       } catch (error) {
         // @ts-expect-error TS(2345) FIXME: Argument of type 'unknown' is not assignable to pa... Remove this comment to see the full error message
         warn(error)
-        return next()
+        next(); return;
       }
     } else {
       warn('Invalid Content-Type for Netlify Dev forms request')
-      return next()
+      next(); return;
     }
     const data = JSON.stringify({
       payload: {
